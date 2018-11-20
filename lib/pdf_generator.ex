@@ -81,7 +81,7 @@ defmodule PdfGenerator do
   # return file name of generated pdf
 
   @doc """
-  Generates a pdf file from given html string. Returns a string containing a
+  Generates a pdf file from given html string or url. Returns a string containing a
   temporary file path for that PDF.
 
   ## Options
@@ -108,23 +108,25 @@ defmodule PdfGenerator do
     delete_temporary: true,
     filename: "my_awesome_pdf"
   )
+  pdf_path_3 = PdfGenerator.generate "http://www.google.com"
   """
   def generate( html ) do
     generate html, page_size: "A4"
   end
   
   def generate("http" <> url, options) do
-    full_url = "http#{url}"
-    filebase        = generate_filebase(options[:filename])
-    pdf_file        = filebase <> ".pdf"
+    full_url  = "http#{url}"
+    filebase  = generate_filebase(options[:filename])
+    pdf_file  = filebase <> ".pdf"
 
     generate(full_url, pdf_file, options)
   end
 
   def generate( html, options ) do
-    filebase    = generate_filebase(options[:filename])
-    html_file       = filebase <> ".html"
-    pdf_file      = filebase <> ".pdf"
+    filebase  = generate_filebase(options[:filename])
+    html_file = filebase <> ".html"
+    pdf_file  = filebase <> ".pdf"
+
     File.write(html_file, html)
 
     generate(html_file, pdf_file, options)
@@ -135,15 +137,21 @@ defmodule PdfGenerator do
       "--page-size", Keyword.get( options, :page_size ) || "A4",
       Keyword.get( options, :shell_params ) || [] # will be flattened
     ]
+
     executable     = PdfGenerator.PathAgent.get.wkhtml_path
     arguments      = List.flatten( [ shell_params, input, pdf_output_file ] )
     command_prefix = get_command_prefix( options )
+
     # allow for xvfb-run wkhtmltopdf arg1 arg2
     # or sudo wkhtmltopdf ...
     { executable, arguments } = make_command_tuple(command_prefix, executable, arguments)
+
     %Result{ out: _output, status: status, err: error } = Porcelain.exec(
       executable, arguments, [in: "", out: :string, err: :string]
     )
+
+    if Keyword.get(options, :delete_temporary), do: input |> File.rm
+
     case status do
       0 ->
         case Keyword.get options, :open_password do
